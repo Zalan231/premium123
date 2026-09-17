@@ -35,6 +35,9 @@
       - Extra WalkSpeed
       - Speed toggle
       - Speed bind
+      - Fly
+      - Fly Speed
+      - Fly bind
       - Debug Hitbox
       - Hitbox Size
       - Head / Body
@@ -121,12 +124,21 @@ local ESP_COLOR =
         255
     )
 
+-- Separate ESP element colors
+local ESP_NAME_COLOR = ESP_COLOR
+local ESP_DISTANCE_COLOR = ESP_COLOR
+local ESP_SKELETON_COLOR = ESP_COLOR
+local ESP_HIGHLIGHT_COLOR = ESP_COLOR
+local ESP_BOX_COLOR = ESP_COLOR
+
 
 --==============================================================
 -- AIM CONFIG
 --==============================================================
 
 local AIM_ENABLED = false
+
+local SILENT_AIM_ENABLED = false
 
 local AIM_STICKY = true
 
@@ -171,6 +183,146 @@ local SPEED_BIND = {
     KeyCode =
         Enum.KeyCode.LeftShift
 }
+
+
+--==============================================================
+-- FLY CONFIG
+--==============================================================
+
+local FLY_ENABLED = false
+local FLY_SPEED = 50
+
+local FLY_BIND = {
+    InputType = Enum.UserInputType.Keyboard,
+    KeyCode = Enum.KeyCode.F
+}
+
+local flyKeys = {W=false, A=false, S=false, D=false, Up=false, Down=false}
+local flyAttachment = nil
+local flyVelocity = nil
+local flyOrientation = nil
+
+local function stopFly()
+    if flyVelocity then flyVelocity:Destroy(); flyVelocity = nil end
+    if flyOrientation then flyOrientation:Destroy(); flyOrientation = nil end
+    if flyAttachment then flyAttachment:Destroy(); flyAttachment = nil end
+    local c = LP.Character
+    local h = c and c:FindFirstChildOfClass("Humanoid")
+    if h then h.AutoRotate = true end
+end
+
+local function startFly()
+    stopFly()
+    local c = LP.Character
+    local root = c and c:FindFirstChild("HumanoidRootPart")
+    local h = c and c:FindFirstChildOfClass("Humanoid")
+    if not root or not h then return end
+    flyAttachment = Instance.new("Attachment")
+    flyAttachment.Name = "ZalanFlyAttachment"
+    flyAttachment.Parent = root
+    flyVelocity = Instance.new("LinearVelocity")
+    flyVelocity.Name = "ZalanFlyVelocity"
+    flyVelocity.Attachment0 = flyAttachment
+    flyVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    flyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+    flyVelocity.MaxForce = math.huge
+    flyVelocity.VectorVelocity = Vector3.zero
+    flyVelocity.Parent = root
+    flyOrientation = Instance.new("AlignOrientation")
+    flyOrientation.Name = "ZalanFlyOrientation"
+    flyOrientation.Attachment0 = flyAttachment
+    flyOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    flyOrientation.RigidityEnabled = false
+    flyOrientation.Responsiveness = 25
+    flyOrientation.MaxTorque = math.huge
+    flyOrientation.Parent = root
+    h.AutoRotate = false
+end
+
+local function setFly(enabled)
+    FLY_ENABLED = enabled
+    if enabled then startFly() else stopFly() end
+end
+
+--==============================================================
+-- SELF TROLL CONFIG
+--==============================================================
+
+local SPIN_ENABLED = false
+local SPIN_SPEED = 180
+local BUNNY_ENABLED = false
+local FANNIKA_ENABLED = false
+local MOON_ENABLED = false
+local INVISIBLE_ENABLED = false
+local SUPER_JUMP_ENABLED = false
+local SUPER_JUMP_POWER = 100
+local NOCLIP_ENABLED = false
+local DRUNK_CAMERA_ENABLED = false
+local FOV_SPAM_ENABLED = false
+local UPSIDE_CAMERA_ENABLED = false
+local RAINBOW_ENABLED = false
+local ORIGINAL_GRAVITY = workspace.Gravity
+local ORIGINAL_FOV = Camera.FieldOfView
+local noclipOriginal = {}
+local rainbowOriginal = {}
+
+local function setSuperJump(enabled)
+    SUPER_JUMP_ENABLED = enabled
+    local c = LP.Character
+    local h = c and c:FindFirstChildOfClass("Humanoid")
+    if h then
+        h.UseJumpPower = true
+        h.JumpPower = enabled and SUPER_JUMP_POWER or 50
+    end
+end
+
+local function setNoclip(enabled)
+    NOCLIP_ENABLED = enabled
+    if not enabled then
+        for part, value in pairs(noclipOriginal) do
+            if part and part.Parent then part.CanCollide = value end
+        end
+        table.clear(noclipOriginal)
+    end
+end
+
+local function setRainbow(enabled)
+    RAINBOW_ENABLED = enabled
+    local c = LP.Character
+    if not c then return end
+    if not enabled then
+        for part, color in pairs(rainbowOriginal) do
+            if part and part.Parent then part.Color = color end
+        end
+        table.clear(rainbowOriginal)
+    end
+end
+
+local function resetExtraTrolls()
+    setSuperJump(false)
+    setNoclip(false)
+    setRainbow(false)
+    DRUNK_CAMERA_ENABLED = false
+    FOV_SPAM_ENABLED = false
+    UPSIDE_CAMERA_ENABLED = false
+    Camera.FieldOfView = ORIGINAL_FOV
+end
+
+local function applyLocalInvisible(enabled)
+    INVISIBLE_ENABLED = enabled
+    local character = LP.Character
+    if not character then return end
+    for _, obj in ipairs(character:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            obj.LocalTransparencyModifier = enabled and 1 or 0
+        end
+    end
+end
+
+local function setMoon(enabled)
+    MOON_ENABLED = enabled
+    workspace.Gravity = enabled and 70 or ORIGINAL_GRAVITY
+end
 
 
 --==============================================================
@@ -327,6 +479,37 @@ local function connect(
 
 end
 
+
+--==============================================================
+-- FLY RENDER LOOP
+--==============================================================
+
+connect(RunService.RenderStepped, function()
+    if UNLOADED or not FLY_ENABLED then return end
+    local c = LP.Character
+    local root = c and c:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if not flyVelocity or not flyVelocity.Parent then startFly() end
+    if not flyVelocity then return end
+    local look = Camera.CFrame.LookVector
+    local right = Camera.CFrame.RightVector
+    local forward = Vector3.new(look.X,0,look.Z)
+    local side = Vector3.new(right.X,0,right.Z)
+    if forward.Magnitude > 0 then forward = forward.Unit end
+    if side.Magnitude > 0 then side = side.Unit end
+    local dir = Vector3.zero
+    if flyKeys.W then dir += forward end
+    if flyKeys.S then dir -= forward end
+    if flyKeys.D then dir += side end
+    if flyKeys.A then dir -= side end
+    if flyKeys.Up then dir += Vector3.yAxis end
+    if flyKeys.Down then dir -= Vector3.yAxis end
+    if dir.Magnitude > 1 then dir = dir.Unit end
+    flyVelocity.VectorVelocity = dir * FLY_SPEED
+    if flyOrientation and forward.Magnitude > 0 then
+        flyOrientation.CFrame = CFrame.lookAt(Vector3.zero, forward)
+    end
+end)
 
 --==============================================================
 -- UI HELPERS
@@ -734,6 +917,9 @@ Main.BorderSizePixel = 0
 
 Main.Visible = false
 
+Main.Active = true
+Main.Draggable = true
+
 Main.ClipsDescendants = true
 
 Main.Parent =
@@ -1088,6 +1274,11 @@ local AimPage =
 local PlayerPage =
     createPage(
         "PLAYER"
+    )
+
+local TrollPage =
+    createPage(
+        "TROLL"
     )
 
 local WhitelistPage =
@@ -2298,7 +2489,7 @@ local function setLine(
 
 
     line.BackgroundColor3 =
-        ESP_COLOR
+        line:GetAttribute("ESPLineColor") or ESP_COLOR
 
     line.Visible =
         true
@@ -2390,6 +2581,7 @@ local function createESP(player)
         Enum.Font.GothamBold
 
     info.TextSize = 13
+    info.RichText = true
 
     info.TextXAlignment =
         Enum.TextXAlignment.Center
@@ -2720,6 +2912,10 @@ local function updateBox(
         )
 
 
+    for _, line in ipairs(data.Box) do
+        line:SetAttribute("ESPLineColor", ESP_BOX_COLOR)
+    end
+
     setLine(
         data.Box[1],
         TL,
@@ -2776,6 +2972,9 @@ local function updateSkeleton(
         data.Skeleton
     )
 
+    for _, line in ipairs(data.Skeleton) do
+        line:SetAttribute("ESPLineColor", ESP_SKELETON_COLOR)
+    end
 
     local definition =
 
@@ -3261,6 +3460,10 @@ end
 -- VALID AIM TARGET
 --==============================================================
 
+GUI:SetAttribute("TeamCheck", false)
+GUI:SetAttribute("WallCheck", false)
+
+
 local function validAimPlayer(
     player
 )
@@ -3277,6 +3480,17 @@ local function validAimPlayer(
     if isWhitelisted(
         player
     ) then
+
+        return false
+
+    end
+
+
+    if GUI:GetAttribute("TeamCheck")
+        and LP.Team ~= nil
+        and player.Team ~= nil
+        and LP.Team == player.Team
+    then
 
         return false
 
@@ -3331,6 +3545,45 @@ local function validAimPlayer(
     then
 
         return false
+
+    end
+
+
+    if GUI:GetAttribute("WallCheck") then
+
+        local rayParams =
+            RaycastParams.new()
+
+        rayParams.FilterType =
+            Enum.RaycastFilterType.Exclude
+
+        if LP.Character then
+            rayParams.FilterDescendantsInstances =
+                {LP.Character}
+        else
+            rayParams.FilterDescendantsInstances =
+                {}
+        end
+
+        rayParams.IgnoreWater =
+            true
+
+        local wallResult =
+            workspace:Raycast(
+                Camera.CFrame.Position,
+                part.Position - Camera.CFrame.Position,
+                rayParams
+            )
+
+        if wallResult
+            and not wallResult.Instance:IsDescendantOf(
+                character
+            )
+        then
+
+            return false
+
+        end
 
     end
 
@@ -3466,6 +3719,56 @@ end
 
 
 --==============================================================
+-- SILENT AIM SHOT DIRECTION
+--==============================================================
+
+local function getShotDirection(origin, normalDirection)
+    if not SILENT_AIM_ENABLED then
+        return normalDirection
+    end
+
+    local target = findAimPlayer()
+
+    if not target or not validAimPlayer(target) then
+        return normalDirection
+    end
+
+    local targetPart = getAimPart(target.Character)
+
+    if not targetPart then
+        return normalDirection
+    end
+
+    local delta = targetPart.Position - origin
+
+    if delta.Magnitude <= 0 then
+        return normalDirection
+    end
+
+    return delta.Unit
+end
+
+--[[
+    A SAJÁT FEGYVERED LÖVÉSI KÓDJÁBAN használd így:
+
+    local origin = Camera.CFrame.Position
+    local normalDirection = Camera.CFrame.LookVector
+    local direction = getShotDirection(origin, normalDirection)
+
+    local result = workspace:Raycast(
+        origin,
+        direction * 1000,
+        raycastParams
+    )
+
+    FONTOS:
+    A panel önmagában nem tudja kitalálni, hol van a saját fegyvered
+    tényleges Raycast-hívása vagy raycastParams változója. Ezt a helper
+    függvényt annak a lövési kódnak kell meghívnia.
+]]
+
+
+--==============================================================
 -- VISUALS PAGE
 --==============================================================
 
@@ -3577,37 +3880,8 @@ createSlider(
 
 
 --==============================================================
--- ESP COLOR
+-- ESP SEPARATE COLORS
 --==============================================================
-
-local ColorCard =
-    createCard(
-        VisualPage,
-        72
-    )
-
-
-local ColorTitle =
-    makeText(
-        ColorCard,
-        "ESP COLOR",
-        13,
-        TEXT,
-        Enum.Font.GothamMedium
-    )
-
-ColorTitle.Size =
-    UDim2.fromOffset(
-        150,
-        72
-    )
-
-ColorTitle.Position =
-    UDim2.fromOffset(
-        18,
-        0
-    )
-
 
 local colors = {
 
@@ -3677,103 +3951,66 @@ local colors = {
 }
 
 
-local colorIndex =
-    1
+local function createESPColorSelector(title, getColor, setColor)
+    local card = createCard(VisualsPage, title, 58)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.fromOffset(140, 34)
+    button.Position = UDim2.new(1, -158, 0.5, -17)
+    button.BackgroundColor3 = getColor()
+    button.Text = "BLUE"
+    button.TextColor3 = TEXT
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 11
+    button.AutoButtonColor = false
+    button.Parent = card
+    corner(button, 7)
 
-
-local ColorButton =
-    Instance.new(
-        "TextButton"
-    )
-
-ColorButton.Size =
-    UDim2.fromOffset(
-        140,
-        34
-    )
-
-ColorButton.Position =
-    UDim2.new(
-        1,
-        -158,
-        0.5,
-        -17
-    )
-
-ColorButton.BackgroundColor3 =
-    ESP_COLOR
-
-ColorButton.Text =
-    "BLUE"
-
-ColorButton.TextColor3 =
-    TEXT
-
-ColorButton.Font =
-    Enum.Font.GothamBold
-
-ColorButton.TextSize =
-    11
-
-ColorButton.AutoButtonColor =
-    false
-
-ColorButton.Parent =
-    ColorCard
-
-corner(
-    ColorButton,
-    7
-)
-
-
-connect(
-    ColorButton.MouseButton1Click,
-    function()
-
-        colorIndex += 1
-
-
-        if colorIndex
-            >
-            #colors
-        then
-
-            colorIndex =
-                1
-
+    local index = 1
+    connect(button.MouseButton1Click, function()
+        index += 1
+        if index > #colors then
+            index = 1
         end
+        local chosen = colors[index]
+        setColor(chosen[2])
+        button.Text = chosen[1]
+        button.BackgroundColor3 = chosen[2]
+    end)
+end
 
+createESPColorSelector("NAME COLOR", function()
+    return ESP_NAME_COLOR
+end, function(value)
+    ESP_NAME_COLOR = value
+end)
 
-        ESP_COLOR =
-            colors[colorIndex][2]
+createESPColorSelector("DISTANCE COLOR", function()
+    return ESP_DISTANCE_COLOR
+end, function(value)
+    ESP_DISTANCE_COLOR = value
+end)
 
+createESPColorSelector("SKELETON COLOR", function()
+    return ESP_SKELETON_COLOR
+end, function(value)
+    ESP_SKELETON_COLOR = value
+end)
 
-        ColorButton.Text =
-            colors[colorIndex][1]
-
-
-        ColorButton.BackgroundColor3 =
-            ESP_COLOR
-
-
-        for _, data in pairs(
-            ESP
-        ) do
-
-            data.Highlight.FillColor =
-                ESP_COLOR
-
-            data.Highlight.OutlineColor =
-                ESP_COLOR
-
-            data.Info.TextColor3 =
-                ESP_COLOR
-
-        end
-
+createESPColorSelector("HIGHLIGHT COLOR", function()
+    return ESP_HIGHLIGHT_COLOR
+end, function(value)
+    ESP_HIGHLIGHT_COLOR = value
+    for _, data in pairs(ESP) do
+        data.Highlight.FillColor = value
+        data.Highlight.OutlineColor = value
     end
-)
+end)
+
+createESPColorSelector("BOX COLOR", function()
+    return ESP_BOX_COLOR
+end, function(value)
+    ESP_BOX_COLOR = value
+end)
 
 
 --==============================================================
@@ -3802,6 +4039,55 @@ AimMasterToggle =
 
         end
     )
+
+
+createToggle(
+    AimPage,
+    "SILENT AIM",
+    false,
+    function(value)
+
+        SILENT_AIM_ENABLED =
+            value
+
+    end
+)
+
+
+createToggle(
+    AimPage,
+    "TEAM CHECK",
+    false,
+    function(value)
+
+        GUI:SetAttribute(
+            "TeamCheck",
+            value
+        )
+
+        currentTarget =
+            nil
+
+    end
+)
+
+
+createToggle(
+    AimPage,
+    "WALL CHECK",
+    false,
+    function(value)
+
+        GUI:SetAttribute(
+            "WallCheck",
+            value
+        )
+
+        currentTarget =
+            nil
+
+    end
+)
 
 
 createToggle(
@@ -3850,6 +4136,9 @@ createChoice(
             value
 
         AIM_ENABLED =
+            false
+
+        SILENT_AIM_ENABLED =
             false
 
         currentTarget =
@@ -4031,6 +4320,32 @@ createKeybind(
 )
 
 
+local FlyToggle
+
+FlyToggle = createToggle(
+    PlayerPage,
+    "FLY",
+    false,
+    function(value) setFly(value) end
+)
+
+createSlider(
+    PlayerPage,
+    "FLY SPEED",
+    10,
+    250,
+    50,
+    "",
+    function(value) FLY_SPEED = value end
+)
+
+createKeybind(
+    PlayerPage,
+    "FLY BIND",
+    FLY_BIND,
+    function(newBind) FLY_BIND = newBind end
+)
+
 --==============================================================
 -- DEBUG HITBOX GUI
 --==============================================================
@@ -4098,6 +4413,199 @@ createToggle(
 
     end
 )
+
+
+--==============================================================
+-- TROLL PAGE (SELF / LOCAL EFFECTS)
+--==============================================================
+
+createToggle(
+    TrollPage,
+    "SPINBOT",
+    false,
+    function(value)
+        SPIN_ENABLED = value
+    end
+)
+
+createSlider(
+    TrollPage,
+    "SPIN SPEED",
+    30,
+    1080,
+    180,
+    " deg/s",
+    function(value)
+        SPIN_SPEED = value
+    end
+)
+
+createToggle(
+    TrollPage,
+    "BUNNY HOP",
+    false,
+    function(value)
+        BUNNY_ENABLED = value
+    end
+)
+
+-- FANNIKA: zene + folyamatos saját karakter ugrálás
+local FannikaSound = Instance.new("Sound")
+FannikaSound.Name = "FannikaMusic"
+FannikaSound.SoundId = "rbxassetid://7851649484"
+FannikaSound.Volume = 1
+FannikaSound.Looped = true
+FannikaSound.Parent = GUI
+
+local function setFannika(enabled)
+    FANNIKA_ENABLED = enabled
+    if enabled then
+        if not FannikaSound.IsPlaying then
+            pcall(function() FannikaSound:Play() end)
+        end
+    else
+        pcall(function() FannikaSound:Stop() end)
+    end
+end
+
+createToggle(
+    TrollPage,
+    "FANNIKA",
+    false,
+    function(value)
+        setFannika(value)
+    end
+)
+
+createToggle(
+    TrollPage,
+    "MOON GRAVITY",
+    false,
+    function(value)
+        setMoon(value)
+    end
+)
+
+createToggle(
+    TrollPage,
+    "LOCAL INVISIBLE",
+    false,
+    function(value)
+        applyLocalInvisible(value)
+    end
+)
+
+createToggle(TrollPage, "SUPER JUMP", false, function(value) setSuperJump(value) end)
+createSlider(TrollPage, "JUMP POWER", 50, 250, 100, "", function(value)
+    SUPER_JUMP_POWER = value
+    if SUPER_JUMP_ENABLED then setSuperJump(true) end
+end)
+createToggle(TrollPage, "NOCLIP", false, function(value) setNoclip(value) end)
+createToggle(TrollPage, "RAINBOW CHARACTER", false, function(value) setRainbow(value) end)
+createToggle(TrollPage, "DRUNK CAMERA", false, function(value) DRUNK_CAMERA_ENABLED = value end)
+createToggle(TrollPage, "FOV SPAM", false, function(value)
+    FOV_SPAM_ENABLED = value
+    if not value then Camera.FieldOfView = ORIGINAL_FOV end
+end)
+createToggle(TrollPage, "UPSIDE DOWN CAMERA", false, function(value) UPSIDE_CAMERA_ENABLED = value end)
+
+local ResetTrollCard = createCard(TrollPage, 68)
+local ResetTrollLabel = makeText(ResetTrollCard, "RESET ALL TROLLS", 13, TEXT, Enum.Font.GothamMedium)
+ResetTrollLabel.Size = UDim2.new(1, -190, 1, 0)
+ResetTrollLabel.Position = UDim2.fromOffset(18, 0)
+local ResetTrollButton = Instance.new("TextButton")
+ResetTrollButton.Size = UDim2.fromOffset(145, 36)
+ResetTrollButton.Position = UDim2.new(1, -163, 0.5, -18)
+ResetTrollButton.BackgroundColor3 = CARD2
+ResetTrollButton.BorderSizePixel = 0
+ResetTrollButton.Text = "RESET"
+ResetTrollButton.TextColor3 = RED
+ResetTrollButton.TextSize = 11
+ResetTrollButton.Font = Enum.Font.GothamBold
+ResetTrollButton.Parent = ResetTrollCard
+corner(ResetTrollButton, 8)
+connect(ResetTrollButton.MouseButton1Click, function()
+    SPIN_ENABLED=false; BUNNY_ENABLED=false; setFannika(false); setMoon(false); applyLocalInvisible(false); resetExtraTrolls()
+end)
+
+local RandomTrollCard = createCard(TrollPage, 68)
+local RandomTrollLabel = makeText(RandomTrollCard, "RANDOM SELF TROLL", 13, TEXT, Enum.Font.GothamMedium)
+RandomTrollLabel.Size = UDim2.new(1, -190, 1, 0)
+RandomTrollLabel.Position = UDim2.fromOffset(18, 0)
+
+local RandomTrollButton = Instance.new("TextButton")
+RandomTrollButton.Size = UDim2.fromOffset(145, 36)
+RandomTrollButton.Position = UDim2.new(1, -163, 0.5, -18)
+RandomTrollButton.BackgroundColor3 = CARD2
+RandomTrollButton.BorderSizePixel = 0
+RandomTrollButton.Text = "RANDOM"
+RandomTrollButton.TextColor3 = ACCENT
+RandomTrollButton.TextSize = 11
+RandomTrollButton.Font = Enum.Font.GothamBold
+RandomTrollButton.AutoButtonColor = false
+RandomTrollButton.Parent = RandomTrollCard
+corner(RandomTrollButton, 8)
+stroke(RandomTrollButton)
+
+connect(RandomTrollButton.MouseButton1Click, function()
+    local choice = math.random(1, 4)
+    if choice == 1 then
+        SPIN_ENABLED = not SPIN_ENABLED
+    elseif choice == 2 then
+        BUNNY_ENABLED = not BUNNY_ENABLED
+    elseif choice == 3 then
+        setMoon(not MOON_ENABLED)
+    else
+        applyLocalInvisible(not INVISIBLE_ENABLED)
+    end
+end)
+
+-- Self troll runtime
+connect(RunService.RenderStepped, function(dt)
+    if UNLOADED then return end
+    local character = LP.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if SPIN_ENABLED and root then
+        root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(SPIN_SPEED * dt), 0)
+    end
+
+    if BUNNY_ENABLED and humanoid and humanoid.MoveDirection.Magnitude > 0 then
+        if humanoid.FloorMaterial ~= Enum.Material.Air then humanoid.Jump = true end
+    end
+
+    if FANNIKA_ENABLED and humanoid then
+        if humanoid.FloorMaterial ~= Enum.Material.Air then
+            humanoid.Jump = true
+        end
+    end
+
+    if NOCLIP_ENABLED and character then
+        for _, obj in ipairs(character:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                if noclipOriginal[obj] == nil then noclipOriginal[obj] = obj.CanCollide end
+                obj.CanCollide = false
+            end
+        end
+    end
+
+    if RAINBOW_ENABLED and character then
+        local hue = (time() * 0.25) % 1
+        for _, obj in ipairs(character:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                if rainbowOriginal[obj] == nil then rainbowOriginal[obj] = obj.Color end
+                obj.Color = Color3.fromHSV(hue, 1, 1)
+            end
+        end
+    end
+
+    if FOV_SPAM_ENABLED then Camera.FieldOfView = 70 + math.sin(time() * 8) * 35 end
+    if DRUNK_CAMERA_ENABLED then
+        Camera.CFrame = Camera.CFrame * CFrame.Angles(math.rad(math.sin(time()*2)*3), 0, math.rad(math.sin(time()*3)*5))
+    end
+    if UPSIDE_CAMERA_ENABLED then Camera.CFrame = Camera.CFrame * CFrame.Angles(0, 0, math.rad(180)) end
+end)
 
 
 --==============================================================
@@ -4387,6 +4895,226 @@ InfoText.TextYAlignment =
 
 
 --==============================================================
+-- V2 PREMIUM UI / QUALITY-OF-LIFE (STABLE)
+--==============================================================
+
+local STREAMER_MODE = false
+local RAINBOW_ACCENT = false
+local GUI_SCALE_VALUE = 100
+local SESSION_STARTED = os.clock()
+
+-- Notifications
+local NotifyHolder = Instance.new("Frame")
+NotifyHolder.Name = "Notifications"
+NotifyHolder.Size = UDim2.fromOffset(300, 260)
+NotifyHolder.Position = UDim2.new(1, -320, 1, -280)
+NotifyHolder.BackgroundTransparency = 1
+NotifyHolder.BorderSizePixel = 0
+NotifyHolder.Parent = GUI
+
+local NotifyLayout = Instance.new("UIListLayout")
+NotifyLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifyLayout.Padding = UDim.new(0, 8)
+NotifyLayout.Parent = NotifyHolder
+
+local function notify(message)
+    if UNLOADED or not NotifyHolder or not NotifyHolder.Parent then return end
+    local card = Instance.new("TextLabel")
+    card.Size = UDim2.new(1, 0, 0, 42)
+    card.BackgroundColor3 = CARD
+    card.BackgroundTransparency = 0.08
+    card.BorderSizePixel = 0
+    card.Text = "  " .. tostring(message)
+    card.TextColor3 = TEXT
+    card.TextSize = 11
+    card.Font = Enum.Font.GothamBold
+    card.TextXAlignment = Enum.TextXAlignment.Left
+    card.Parent = NotifyHolder
+    corner(card, 9)
+    stroke(card)
+    task.delay(2.4, function()
+        if UNLOADED then return end
+        if card and card.Parent then
+            pcall(function()
+                TweenService:Create(card, TweenInfo.new(0.25), {
+                    TextTransparency = 1,
+                    BackgroundTransparency = 1
+                }):Play()
+            end)
+            task.wait(0.3)
+            if card and card.Parent then card:Destroy() end
+        end
+    end)
+end
+
+-- GUI scale
+local MainScale = Instance.new("UIScale")
+MainScale.Name = "PremiumScale"
+MainScale.Scale = 1
+MainScale.Parent = Main
+
+createSlider(SettingsPage, "GUI SCALE", 70, 120, 100, "%", function(value)
+    GUI_SCALE_VALUE = value
+    if MainScale and MainScale.Parent then
+        MainScale.Scale = value / 100
+    end
+end)
+
+createToggle(SettingsPage, "STREAMER MODE", false, function(value)
+    STREAMER_MODE = value
+    notify(value and "Streamer Mode enabled" or "Streamer Mode disabled")
+end)
+
+createToggle(SettingsPage, "RAINBOW ACCENT", false, function(value)
+    RAINBOW_ACCENT = value
+    notify(value and "Rainbow accent enabled" or "Rainbow accent disabled")
+end)
+
+-- Performance panel
+local PerfCard = createCard(SettingsPage, 105)
+local PerfTitle = makeText(PerfCard, "PERFORMANCE", 13, TEXT, Enum.Font.GothamBold)
+PerfTitle.Size = UDim2.new(1, -36, 0, 25)
+PerfTitle.Position = UDim2.fromOffset(18, 10)
+local PerfText = makeText(PerfCard, "FPS: --   |   Players: --\nSession: 00:00   |   GUI Scale: 100%", 11, MUTED, Enum.Font.GothamMedium)
+PerfText.Size = UDim2.new(1, -36, 0, 55)
+PerfText.Position = UDim2.fromOffset(18, 38)
+PerfText.TextWrapped = true
+
+local fpsFrames = 0
+local fpsClock = os.clock()
+connect(RunService.RenderStepped, function()
+    if UNLOADED then return end
+    fpsFrames += 1
+    local now = os.clock()
+    if now - fpsClock >= 0.5 then
+        local elapsed = now - fpsClock
+        local shownFPS = elapsed > 0 and math.floor(fpsFrames / elapsed + 0.5) or 0
+        fpsFrames = 0
+        fpsClock = now
+        local session = math.max(0, math.floor(now - SESSION_STARTED))
+        local mins = math.floor(session / 60)
+        local secs = session % 60
+        if PerfText and PerfText.Parent then
+            PerfText.Text = string.format(
+                "FPS: %d   |   Players: %d\nSession: %02d:%02d   |   GUI Scale: %d%%",
+                shownFPS, #Players:GetPlayers(), mins, secs, GUI_SCALE_VALUE
+            )
+        end
+    end
+end)
+
+-- Keybind list
+local BindCard = createCard(SettingsPage, 115)
+local BindTitle = makeText(BindCard, "KEYBINDS", 13, TEXT, Enum.Font.GothamBold)
+BindTitle.Size = UDim2.new(1, -36, 0, 25)
+BindTitle.Position = UDim2.fromOffset(18, 10)
+local BindText = makeText(BindCard, "", 11, MUTED, Enum.Font.GothamMedium)
+BindText.Size = UDim2.new(1, -36, 0, 70)
+BindText.Position = UDim2.fromOffset(18, 36)
+
+local function refreshBindText()
+    if UNLOADED or not BindText or not BindText.Parent then return end
+    local aim = AIM_BIND and bindName(AIM_BIND) or "-"
+    local speed = SPEED_BIND and bindName(SPEED_BIND) or "-"
+    local fly = FLY_BIND and bindName(FLY_BIND) or "-"
+    BindText.Text = "Aim: " .. aim .. "   |   Speed: " .. speed .. "\nFly: " .. fly .. "   |   Menu: INSERT"
+end
+refreshBindText()
+
+local bindRefreshClock = 0
+connect(RunService.Heartbeat, function(dt)
+    if UNLOADED then return end
+    bindRefreshClock += dt
+    if bindRefreshClock >= 0.25 then
+        bindRefreshClock = 0
+        refreshBindText()
+    end
+end)
+
+-- Whitelist search box
+local SearchBox = Instance.new("TextBox")
+SearchBox.Name = "PlayerSearch"
+SearchBox.Size = UDim2.new(1, -8, 0, 42)
+SearchBox.BackgroundColor3 = CARD
+SearchBox.BorderSizePixel = 0
+SearchBox.PlaceholderText = "Search online players..."
+SearchBox.PlaceholderColor3 = MUTED
+SearchBox.Text = ""
+SearchBox.TextColor3 = TEXT
+SearchBox.TextSize = 12
+SearchBox.Font = Enum.Font.GothamMedium
+SearchBox.ClearTextOnFocus = false
+SearchBox.LayoutOrder = -100
+SearchBox.Parent = WhitelistPage
+corner(SearchBox, 9)
+stroke(SearchBox)
+
+local function applyPlayerSearch()
+    local q = string.lower(SearchBox.Text or "")
+    for player, row in pairs(PlayerRows) do
+        if row and row.Parent and player then
+            local hay = string.lower((player.Name or "") .. " " .. (player.DisplayName or ""))
+            row.Visible = q == "" or string.find(hay, q, 1, true) ~= nil
+        end
+    end
+end
+connect(SearchBox:GetPropertyChangedSignal("Text"), applyPlayerSearch)
+
+-- Rainbow accent. Only touches safe, already-created labels.
+connect(RunService.RenderStepped, function()
+    if UNLOADED or not RAINBOW_ACCENT then return end
+    local c = Color3.fromHSV((os.clock() * 0.12) % 1, 0.75, 1)
+    if Premium and Premium.Parent then Premium.TextColor3 = c end
+    if PageDescription and PageDescription.Parent then PageDescription.TextColor3 = c end
+end)
+
+-- Quick presets
+local PresetCard = createCard(SettingsPage, 88)
+local PresetTitle = makeText(PresetCard, "QUICK PRESETS", 13, TEXT, Enum.Font.GothamBold)
+PresetTitle.Size = UDim2.new(1, -36, 0, 24)
+PresetTitle.Position = UDim2.fromOffset(18, 8)
+
+local function presetButton(text, x, callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.fromOffset(120, 34)
+    b.Position = UDim2.fromOffset(x, 42)
+    b.BackgroundColor3 = CARD2
+    b.BorderSizePixel = 0
+    b.Text = text
+    b.TextColor3 = ACCENT
+    b.TextSize = 10
+    b.Font = Enum.Font.GothamBold
+    b.AutoButtonColor = false
+    b.Parent = PresetCard
+    corner(b, 7)
+    connect(b.MouseButton1Click, callback)
+end
+
+presetButton("CLEAN", 18, function()
+    GUI_SCALE_VALUE = 100
+    MainScale.Scale = 1
+    STREAMER_MODE = false
+    RAINBOW_ACCENT = false
+    Premium.TextColor3 = ACCENT
+    PageDescription.TextColor3 = MUTED
+    notify("CLEAN preset loaded")
+end)
+
+presetButton("STREAM", 148, function()
+    GUI_SCALE_VALUE = 90
+    MainScale.Scale = 0.9
+    STREAMER_MODE = true
+    notify("STREAM preset loaded")
+end)
+
+presetButton("FUN UI", 278, function()
+    RAINBOW_ACCENT = true
+    notify("FUN UI preset loaded")
+end)
+
+notify("V2 stable UI loaded")
+
+--==============================================================
 -- NAVIGATION
 --==============================================================
 
@@ -4403,6 +5131,9 @@ local descriptions = {
 
     PLAYER =
         "Movement and debug settings",
+
+    TROLL =
+        "Funny self effects and movement trolls",
 
     WHITELIST =
         "Players ignored by ESP and Aim",
@@ -4492,13 +5223,18 @@ createNav(
 )
 
 createNav(
-    "WHITELIST",
+    "TROLL",
     272
 )
 
 createNav(
-    "SETTINGS",
+    "WHITELIST",
     316
+)
+
+createNav(
+    "SETTINGS",
+    360
 )
 
 
@@ -4681,7 +5417,14 @@ connect(
 
             if isWhitelisted(
                 player
-            ) then
+            )
+                or (
+                    GUI:GetAttribute("TeamCheck")
+                    and LP.Team ~= nil
+                    and player.Team ~= nil
+                    and LP.Team == player.Team
+                )
+            then
 
                 hideESP(
                     data
@@ -4852,28 +5595,31 @@ connect(
 
             local info = {}
 
-
-            if ESP_NAME then
-
-                table.insert(
-                    info,
-                    player.DisplayName
+            local function rgbTag(color, text)
+                return string.format(
+                    '<font color="rgb(%d,%d,%d)">%s</font>',
+                    math.floor(color.R * 255 + 0.5),
+                    math.floor(color.G * 255 + 0.5),
+                    math.floor(color.B * 255 + 0.5),
+                    text
                 )
-
             end
 
-
-            if ESP_DISTANCE then
-
+            if ESP_NAME then
                 table.insert(
                     info,
-                    "Távolság: "
-                    ..
-                    math.floor(
-                        distance
+                    rgbTag(ESP_NAME_COLOR, player.DisplayName)
+                )
+            end
+
+            if ESP_DISTANCE then
+                table.insert(
+                    info,
+                    rgbTag(
+                        ESP_DISTANCE_COLOR,
+                        "Távolság: " .. math.floor(distance)
                     )
                 )
-
             end
 
 
@@ -5147,6 +5893,23 @@ connect(
 
 
         --======================================================
+        -- FLY MOVEMENT / BIND
+        --======================================================
+
+        if input.KeyCode == Enum.KeyCode.W then flyKeys.W = true end
+        if input.KeyCode == Enum.KeyCode.A then flyKeys.A = true end
+        if input.KeyCode == Enum.KeyCode.S then flyKeys.S = true end
+        if input.KeyCode == Enum.KeyCode.D then flyKeys.D = true end
+        if input.KeyCode == Enum.KeyCode.Space then flyKeys.Up = true end
+        if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then flyKeys.Down = true end
+
+        if matchesBind(input, FLY_BIND) then
+            FLY_ENABLED = not FLY_ENABLED
+            FlyToggle.Set(FLY_ENABLED)
+            return
+        end
+
+        --======================================================
         -- SPEED
         --======================================================
 
@@ -5184,6 +5947,13 @@ connect(
             return
         end
 
+
+        if input.KeyCode == Enum.KeyCode.W then flyKeys.W = false end
+        if input.KeyCode == Enum.KeyCode.A then flyKeys.A = false end
+        if input.KeyCode == Enum.KeyCode.S then flyKeys.S = false end
+        if input.KeyCode == Enum.KeyCode.D then flyKeys.D = false end
+        if input.KeyCode == Enum.KeyCode.Space then flyKeys.Up = false end
+        if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then flyKeys.Down = false end
 
         if AIM_MODE
             ==
@@ -5247,6 +6017,16 @@ connect(
             humanoid.WalkSpeed =
                 NORMAL_SPEED
 
+        end
+
+        if FLY_ENABLED then
+            task.wait(0.2)
+            startFly()
+        end
+
+        if INVISIBLE_ENABLED then
+            task.wait(0.1)
+            applyLocalInvisible(true)
         end
 
     end
@@ -5368,11 +6148,27 @@ connect(
         AIM_ENABLED =
             false
 
+        SILENT_AIM_ENABLED =
+            false
+
         ESP_ENABLED =
             false
 
         SPEED_ENABLED =
             false
+
+        FLY_ENABLED =
+            false
+
+        stopFly()
+        flyKeys.W=false; flyKeys.A=false; flyKeys.S=false; flyKeys.D=false; flyKeys.Up=false; flyKeys.Down=false
+
+        SPIN_ENABLED = false
+        BUNNY_ENABLED = false
+        setFannika(false)
+        setMoon(false)
+        applyLocalInvisible(false)
+        resetExtraTrolls()
 
         HITBOX_ENABLED =
             false
@@ -5679,3 +6475,478 @@ end)
 print(
     "ZALAN MAGYAR MICUP PREMIUM PANEL LOADED"
 )
+
+
+--==============================================================
+-- FLOATING KEYBINDS
+--==============================================================
+local FloatingKeybinds = Instance.new("Frame")
+FloatingKeybinds.Name = "FloatingKeybinds"
+FloatingKeybinds.Size = UDim2.fromOffset(220, 110)
+FloatingKeybinds.Position = UDim2.new(1, -240, 0, 25)
+FloatingKeybinds.BackgroundColor3 = CARD
+FloatingKeybinds.BackgroundTransparency = 0.08
+FloatingKeybinds.BorderSizePixel = 0
+FloatingKeybinds.ZIndex = 100
+FloatingKeybinds.Parent = GUI
+corner(FloatingKeybinds, 10)
+stroke(FloatingKeybinds)
+
+local FloatingKeybindTitle = Instance.new("TextLabel")
+FloatingKeybindTitle.BackgroundTransparency = 1
+FloatingKeybindTitle.Size = UDim2.new(1, -20, 0, 28)
+FloatingKeybindTitle.Position = UDim2.fromOffset(10, 5)
+FloatingKeybindTitle.Font = Enum.Font.GothamBold
+FloatingKeybindTitle.TextSize = 12
+FloatingKeybindTitle.TextColor3 = ACCENT
+FloatingKeybindTitle.TextXAlignment = Enum.TextXAlignment.Left
+FloatingKeybindTitle.Text = "KEYBINDS"
+FloatingKeybindTitle.ZIndex = 101
+FloatingKeybindTitle.Parent = FloatingKeybinds
+
+local FloatingKeybindText = Instance.new("TextLabel")
+FloatingKeybindText.BackgroundTransparency = 1
+FloatingKeybindText.Size = UDim2.new(1, -20, 0, 68)
+FloatingKeybindText.Position = UDim2.fromOffset(10, 34)
+FloatingKeybindText.Font = Enum.Font.GothamMedium
+FloatingKeybindText.TextSize = 11
+FloatingKeybindText.TextColor3 = TEXT
+FloatingKeybindText.TextXAlignment = Enum.TextXAlignment.Left
+FloatingKeybindText.TextYAlignment = Enum.TextYAlignment.Top
+FloatingKeybindText.ZIndex = 101
+FloatingKeybindText.Parent = FloatingKeybinds
+
+local function floatingBindName(bind)
+    if bind == nil then
+        return "-"
+    end
+    local ok, result = pcall(function()
+        return bindName(bind)
+    end)
+    if ok and result ~= nil then
+        return tostring(result)
+    end
+    return "-"
+end
+
+FloatingKeybindText.Text =
+    "Aim: " .. floatingBindName(AIM_BIND)
+    .. "\nSpeed: " .. floatingBindName(SPEED_BIND)
+    .. "\nFly: " .. floatingBindName(FLY_BIND)
+    .. "\nMenu: INSERT"
+
+local floatingTimer = 0
+connect(RunService.Heartbeat, function(dt)
+    if UNLOADED then return end
+    floatingTimer = floatingTimer + dt
+    if floatingTimer >= 0.25 then
+        floatingTimer = 0
+        if FloatingKeybindText and FloatingKeybindText.Parent then
+            FloatingKeybindText.Text =
+                "Aim: " .. floatingBindName(AIM_BIND)
+                .. "\nSpeed: " .. floatingBindName(SPEED_BIND)
+                .. "\nFly: " .. floatingBindName(FLY_BIND)
+                .. "\nTeleport: " .. floatingBindName(TELEPORT_BIND)
+                .. "\nMenu: INSERT"
+        end
+    end
+end)
+
+
+--==============================================================
+-- V3 PERSISTENT CONFIG + PLAYER TELEPORT
+-- Requires the matching ServerScript in ServerScriptService.
+--==============================================================
+do
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local ConfigRemote = ReplicatedStorage:WaitForChild("ZalanPremiumConfig", 10)
+
+    local function makeActionCard(parent, titleText, buttonText, callback)
+        local card = createCard(parent, 64)
+
+        local label = makeText(
+            card,
+            titleText,
+            13,
+            TEXT,
+            Enum.Font.GothamMedium
+        )
+        label.Size = UDim2.new(1, -180, 1, 0)
+        label.Position = UDim2.fromOffset(18, 0)
+
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.fromOffset(130, 34)
+        button.Position = UDim2.new(1, -148, 0.5, -17)
+        button.BackgroundColor3 = ACCENT
+        button.BorderSizePixel = 0
+        button.TextColor3 = TEXT
+        button.TextSize = 11
+        button.Font = Enum.Font.GothamBold
+        button.Text = buttonText
+        button.AutoButtonColor = false
+        button.Parent = card
+        corner(button, 8)
+
+        connect(button.MouseButton1Click, function()
+            if callback then
+                callback()
+            end
+        end)
+
+        return button
+    end
+
+    local function packBind(bind)
+        if not bind then
+            return nil
+        end
+
+        return {
+            InputType = bind.InputType and bind.InputType.Name or nil,
+            KeyCode = bind.KeyCode and bind.KeyCode.Name or nil
+        }
+    end
+
+    local function unpackBind(data, fallback)
+        if type(data) ~= "table" then
+            return fallback
+        end
+
+        local result = {
+            InputType = nil,
+            KeyCode = nil
+        }
+
+        if type(data.InputType) == "string" then
+            pcall(function()
+                result.InputType = Enum.UserInputType[data.InputType]
+            end)
+        end
+
+        if type(data.KeyCode) == "string" then
+            pcall(function()
+                result.KeyCode = Enum.KeyCode[data.KeyCode]
+            end)
+        end
+
+        if result.InputType == nil then
+            return fallback
+        end
+
+        return result
+    end
+
+    local function buildConfig()
+        return {
+            Version = 1,
+
+            ESP_ENABLED = ESP_ENABLED,
+            ESP_HIGHLIGHT = ESP_HIGHLIGHT,
+            ESP_BOX = ESP_BOX,
+            ESP_SKELETON = ESP_SKELETON,
+            ESP_NAME = ESP_NAME,
+            ESP_DISTANCE = ESP_DISTANCE,
+            ESP_HEALTH = ESP_HEALTH,
+            ESP_MAX_DISTANCE = ESP_MAX_DISTANCE,
+
+            AIM_STICKY = AIM_STICKY,
+            AIM_TARGET = AIM_TARGET,
+            AIM_STRENGTH = AIM_STRENGTH,
+            AIM_FOV = AIM_FOV,
+            AIM_DISTANCE = AIM_DISTANCE,
+            AIM_MODE = AIM_MODE,
+            AIM_BIND = packBind(AIM_BIND),
+
+            EXTRA_SPEED = EXTRA_SPEED,
+            SPEED_BIND = packBind(SPEED_BIND),
+
+            FLY_SPEED = FLY_SPEED,
+            FLY_BIND = packBind(FLY_BIND),
+
+            HITBOX_SCALE = HITBOX_SCALE,
+            HITBOX_TARGET = HITBOX_TARGET,
+            HITBOX_VISIBLE = HITBOX_VISIBLE,
+
+            TeamCheck = GUI:GetAttribute("TeamCheck") == true,
+            WallCheck = GUI:GetAttribute("WallCheck") == true,
+
+            GUI_SCALE_VALUE = GUI_SCALE_VALUE
+        }
+    end
+
+    local function applyConfig(data)
+        if type(data) ~= "table" then
+            return false
+        end
+
+        local function bool(name, current)
+            if type(data[name]) == "boolean" then
+                return data[name]
+            end
+            return current
+        end
+
+        local function number(name, current, minValue, maxValue)
+            local value = tonumber(data[name])
+            if value == nil then
+                return current
+            end
+            return math.clamp(value, minValue, maxValue)
+        end
+
+        ESP_ENABLED = bool("ESP_ENABLED", ESP_ENABLED)
+        ESP_HIGHLIGHT = bool("ESP_HIGHLIGHT", ESP_HIGHLIGHT)
+        ESP_BOX = bool("ESP_BOX", ESP_BOX)
+        ESP_SKELETON = bool("ESP_SKELETON", ESP_SKELETON)
+        ESP_NAME = bool("ESP_NAME", ESP_NAME)
+        ESP_DISTANCE = bool("ESP_DISTANCE", ESP_DISTANCE)
+        ESP_HEALTH = bool("ESP_HEALTH", ESP_HEALTH)
+        ESP_MAX_DISTANCE = number("ESP_MAX_DISTANCE", ESP_MAX_DISTANCE, 50, 5000)
+
+        AIM_STICKY = bool("AIM_STICKY", AIM_STICKY)
+        if data.AIM_TARGET == "HEAD" or data.AIM_TARGET == "BODY" then
+            AIM_TARGET = data.AIM_TARGET
+        end
+        AIM_STRENGTH = number("AIM_STRENGTH", AIM_STRENGTH, 1, 100)
+        AIM_FOV = number("AIM_FOV", AIM_FOV, 50, 800)
+        AIM_DISTANCE = number("AIM_DISTANCE", AIM_DISTANCE, 50, 2000)
+        if data.AIM_MODE == "HOLD" or data.AIM_MODE == "TOGGLE" then
+            AIM_MODE = data.AIM_MODE
+        end
+        AIM_BIND = unpackBind(data.AIM_BIND, AIM_BIND)
+
+        EXTRA_SPEED = number("EXTRA_SPEED", EXTRA_SPEED, 0, 100)
+        SPEED_BIND = unpackBind(data.SPEED_BIND, SPEED_BIND)
+
+        FLY_SPEED = number("FLY_SPEED", FLY_SPEED, 10, 250)
+        FLY_BIND = unpackBind(data.FLY_BIND, FLY_BIND)
+
+        HITBOX_SCALE = number("HITBOX_SCALE", HITBOX_SCALE, 1, 10)
+        if data.HITBOX_TARGET == "HEAD" or data.HITBOX_TARGET == "BODY" then
+            HITBOX_TARGET = data.HITBOX_TARGET
+        end
+        HITBOX_VISIBLE = bool("HITBOX_VISIBLE", HITBOX_VISIBLE)
+
+        if type(data.TeamCheck) == "boolean" then
+            GUI:SetAttribute("TeamCheck", data.TeamCheck)
+        end
+        if type(data.WallCheck) == "boolean" then
+            GUI:SetAttribute("WallCheck", data.WallCheck)
+        end
+
+        GUI_SCALE_VALUE = number("GUI_SCALE_VALUE", GUI_SCALE_VALUE, 70, 130)
+        if MainScale then
+            MainScale.Scale = GUI_SCALE_VALUE / 100
+        end
+
+        currentTarget = nil
+        return true
+    end
+
+    -- CONFIG UI
+    makeActionCard(
+        SettingsPage,
+        "PERSISTENT CONFIG",
+        "SAVE CONFIG",
+        function()
+            if not ConfigRemote then
+                notify("Config server missing")
+                return
+            end
+
+            local ok, result = pcall(function()
+                return ConfigRemote:InvokeServer("Save", buildConfig())
+            end)
+
+            if ok and result == true then
+                notify("Config saved")
+            else
+                notify("Config save failed")
+            end
+        end
+    )
+
+    makeActionCard(
+        SettingsPage,
+        "LOAD SAVED CONFIG",
+        "LOAD CONFIG",
+        function()
+            if not ConfigRemote then
+                notify("Config server missing")
+                return
+            end
+
+            local ok, data = pcall(function()
+                return ConfigRemote:InvokeServer("Load")
+            end)
+
+            if ok and type(data) == "table" and applyConfig(data) then
+                notify("Config loaded")
+            else
+                notify("No saved config")
+            end
+        end
+    )
+
+    -- PLAYER TELEPORT UI
+    local TELEPORT_BIND = {
+        InputType = Enum.UserInputType.Keyboard,
+        KeyCode = Enum.KeyCode.T
+    }
+
+    -- Teleports to the player currently under the center of your screen/crosshair.
+    local tpCard = createCard(PlayerPage, 88)
+
+    local tpTitle = makeText(
+        tpCard,
+        "LOOK TELEPORT",
+        13,
+        TEXT,
+        Enum.Font.GothamMedium
+    )
+    tpTitle.Size = UDim2.new(1, -180, 1, 0)
+    tpTitle.Position = UDim2.fromOffset(18, 0)
+
+    local tpButton = Instance.new("TextButton")
+    tpButton.Size = UDim2.fromOffset(130, 38)
+    tpButton.Position = UDim2.new(1, -148, 0.5, -19)
+    tpButton.BackgroundColor3 = ACCENT
+    tpButton.BorderSizePixel = 0
+    tpButton.Text = "TELEPORT"
+    tpButton.TextColor3 = TEXT
+    tpButton.TextSize = 11
+    tpButton.Font = Enum.Font.GothamBold
+    tpButton.Parent = tpCard
+    corner(tpButton, 8)
+
+    local function getLookedAtPlayer()
+        local viewport = Camera.ViewportSize
+        local centerX = viewport.X / 2
+        local centerY = viewport.Y / 2
+
+        -- First use a real ray through the center of the screen.
+        local ray = Camera:ViewportPointToRay(centerX, centerY)
+
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.IgnoreWater = true
+
+        if LP.Character then
+            params.FilterDescendantsInstances = {LP.Character}
+        else
+            params.FilterDescendantsInstances = {}
+        end
+
+        local hit = workspace:Raycast(
+            ray.Origin,
+            ray.Direction * 5000,
+            params
+        )
+
+        if hit and hit.Instance then
+            local model = hit.Instance:FindFirstAncestorOfClass("Model")
+            if model then
+                local player = Players:GetPlayerFromCharacter(model)
+                if player and player ~= LP then
+                    return player
+                end
+            end
+        end
+
+        -- Small crosshair tolerance so you do not need pixel-perfect aim.
+        local closest = nil
+        local closestPixels = 70
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LP and player.Character then
+                local root = player.Character:FindFirstChild("HumanoidRootPart")
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+
+                if root and humanoid and humanoid.Health > 0 then
+                    local screen, visible = Camera:WorldToViewportPoint(root.Position)
+
+                    if visible and screen.Z > 0 then
+                        local dx = screen.X - centerX
+                        local dy = screen.Y - centerY
+                        local pixels = math.sqrt(dx * dx + dy * dy)
+
+                        if pixels < closestPixels then
+                            closestPixels = pixels
+                            closest = player
+                        end
+                    end
+                end
+            end
+        end
+
+        return closest
+    end
+
+    local function teleportToLookedAtPlayer()
+        local target = getLookedAtPlayer()
+
+        if not target then
+            notify("Look at a player first")
+            return
+        end
+
+        local myCharacter = LP.Character
+        local theirCharacter = target.Character
+        local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
+        local theirRoot = theirCharacter and theirCharacter:FindFirstChild("HumanoidRootPart")
+
+        if not myRoot or not theirRoot then
+            notify("Player unavailable")
+            return
+        end
+
+        myRoot.CFrame = theirRoot.CFrame * CFrame.new(3, 0, 0)
+        notify("Teleported to " .. target.Name)
+    end
+
+    connect(tpButton.MouseButton1Click, teleportToLookedAtPlayer)
+
+    createKeybind(
+        PlayerPage,
+        "TELEPORT BIND",
+        TELEPORT_BIND,
+        function(newBind)
+            TELEPORT_BIND = newBind
+        end
+    )
+
+    connect(UIS.InputBegan, function(input, gameProcessed)
+        if UNLOADED or gameProcessed then
+            return
+        end
+
+        if matchesBind(input, TELEPORT_BIND) then
+            teleportToLookedAtPlayer()
+        end
+    end)
+
+    -- AUTO LOAD once after the UI is ready.
+    if ConfigRemote then
+        task.spawn(function()
+            local ok, data = pcall(function()
+                return ConfigRemote:InvokeServer("Load")
+            end)
+
+            if ok and type(data) == "table" then
+                if applyConfig(data) then
+                    notify("Saved config auto-loaded")
+                end
+            end
+        end)
+    else
+        notify("Config ServerScript not found")
+    end
+end
+
+--==============================================================
+-- MODULE EXPORT
+--==============================================================
+return {
+    Loaded = true,
+    Gui = GUI
+}
