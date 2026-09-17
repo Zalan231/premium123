@@ -124,12 +124,13 @@ local ESP_COLOR =
         255
     )
 
--- Separate ESP element colors
-local ESP_NAME_COLOR = ESP_COLOR
-local ESP_DISTANCE_COLOR = ESP_COLOR
-local ESP_SKELETON_COLOR = ESP_COLOR
-local ESP_HIGHLIGHT_COLOR = ESP_COLOR
-local ESP_BOX_COLOR = ESP_COLOR
+local ESP_COLORS = {
+    Name = ESP_COLOR,
+    Distance = ESP_COLOR,
+    Skeleton = ESP_COLOR,
+    Highlight = ESP_COLOR,
+    Box = ESP_COLOR
+}
 
 
 --==============================================================
@@ -183,7 +184,6 @@ local SPEED_BIND = {
     KeyCode =
         Enum.KeyCode.LeftShift
 }
-
 
 --==============================================================
 -- FLY CONFIG
@@ -2416,7 +2416,7 @@ local function newLine()
         )
 
     line.BackgroundColor3 =
-        ESP_COLOR
+        line:GetAttribute("ESPLineColor") or ESP_COLOR
 
     line.BorderSizePixel = 0
 
@@ -2489,7 +2489,7 @@ local function setLine(
 
 
     line.BackgroundColor3 =
-        line:GetAttribute("ESPLineColor") or ESP_COLOR
+        ESP_COLOR
 
     line.Visible =
         true
@@ -2531,13 +2531,13 @@ local function createESP(player)
         )
 
     highlight.FillColor =
-        ESP_COLOR
+        ESP_COLORS.Highlight
 
     highlight.FillTransparency =
         0.82
 
     highlight.OutlineColor =
-        ESP_COLOR
+        ESP_COLORS.Highlight
 
     highlight.OutlineTransparency =
         0
@@ -2574,6 +2574,8 @@ local function createESP(player)
     info.TextColor3 =
         ESP_COLOR
 
+    info.RichText = true
+
     info.TextStrokeTransparency =
         0.15
 
@@ -2581,7 +2583,6 @@ local function createESP(player)
         Enum.Font.GothamBold
 
     info.TextSize = 13
-    info.RichText = true
 
     info.TextXAlignment =
         Enum.TextXAlignment.Center
@@ -2770,6 +2771,10 @@ local function updateBox(
     character
 )
 
+    for _, line in ipairs(data.Box) do
+        line:SetAttribute("ESPLineColor", ESP_COLORS.Box)
+    end
+
     if not ESP_BOX then
 
         hideLines(
@@ -2912,10 +2917,6 @@ local function updateBox(
         )
 
 
-    for _, line in ipairs(data.Box) do
-        line:SetAttribute("ESPLineColor", ESP_BOX_COLOR)
-    end
-
     setLine(
         data.Box[1],
         TL,
@@ -2957,6 +2958,10 @@ local function updateSkeleton(
     humanoid
 )
 
+    for _, line in ipairs(data.Skeleton) do
+        line:SetAttribute("ESPLineColor", ESP_COLORS.Skeleton)
+    end
+
     if not ESP_SKELETON then
 
         hideLines(
@@ -2972,9 +2977,6 @@ local function updateSkeleton(
         data.Skeleton
     )
 
-    for _, line in ipairs(data.Skeleton) do
-        line:SetAttribute("ESPLineColor", ESP_SKELETON_COLOR)
-    end
 
     local definition =
 
@@ -3880,8 +3882,37 @@ createSlider(
 
 
 --==============================================================
--- ESP SEPARATE COLORS
+-- ESP COLOR
 --==============================================================
+
+local ColorCard =
+    createCard(
+        VisualPage,
+        72
+    )
+
+
+local ColorTitle =
+    makeText(
+        ColorCard,
+        "ESP COLOR",
+        13,
+        TEXT,
+        Enum.Font.GothamMedium
+    )
+
+ColorTitle.Size =
+    UDim2.fromOffset(
+        150,
+        72
+    )
+
+ColorTitle.Position =
+    UDim2.fromOffset(
+        18,
+        0
+    )
+
 
 local colors = {
 
@@ -3951,66 +3982,169 @@ local colors = {
 }
 
 
-local function createESPColorSelector(title, getColor, setColor)
-    local card = createCard(VisualsPage, title, 58)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.fromOffset(140, 34)
-    button.Position = UDim2.new(1, -158, 0.5, -17)
-    button.BackgroundColor3 = getColor()
-    button.Text = "BLUE"
-    button.TextColor3 = TEXT
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 11
-    button.AutoButtonColor = false
-    button.Parent = card
-    corner(button, 7)
+local colorIndex =
+    1
 
-    local index = 1
-    connect(button.MouseButton1Click, function()
-        index += 1
-        if index > #colors then
-            index = 1
+
+local ColorButton =
+    Instance.new(
+        "TextButton"
+    )
+
+ColorButton.Size =
+    UDim2.fromOffset(
+        140,
+        34
+    )
+
+ColorButton.Position =
+    UDim2.new(
+        1,
+        -158,
+        0.5,
+        -17
+    )
+
+ColorButton.BackgroundColor3 =
+    ESP_COLOR
+
+ColorButton.Text =
+    "BLUE"
+
+ColorButton.TextColor3 =
+    TEXT
+
+ColorButton.Font =
+    Enum.Font.GothamBold
+
+ColorButton.TextSize =
+    11
+
+ColorButton.AutoButtonColor =
+    false
+
+ColorButton.Parent =
+    ColorCard
+
+corner(
+    ColorButton,
+    7
+)
+
+
+connect(
+    ColorButton.MouseButton1Click,
+    function()
+
+        colorIndex += 1
+
+
+        if colorIndex
+            >
+            #colors
+        then
+
+            colorIndex =
+                1
+
         end
-        local chosen = colors[index]
-        setColor(chosen[2])
-        button.Text = chosen[1]
-        button.BackgroundColor3 = chosen[2]
-    end)
-end
 
-createESPColorSelector("NAME COLOR", function()
-    return ESP_NAME_COLOR
-end, function(value)
-    ESP_NAME_COLOR = value
-end)
 
-createESPColorSelector("DISTANCE COLOR", function()
-    return ESP_DISTANCE_COLOR
-end, function(value)
-    ESP_DISTANCE_COLOR = value
-end)
+        ESP_COLOR =
+            colors[colorIndex][2]
 
-createESPColorSelector("SKELETON COLOR", function()
-    return ESP_SKELETON_COLOR
-end, function(value)
-    ESP_SKELETON_COLOR = value
-end)
 
-createESPColorSelector("HIGHLIGHT COLOR", function()
-    return ESP_HIGHLIGHT_COLOR
-end, function(value)
-    ESP_HIGHLIGHT_COLOR = value
-    for _, data in pairs(ESP) do
-        data.Highlight.FillColor = value
-        data.Highlight.OutlineColor = value
+        ColorButton.Text =
+            colors[colorIndex][1]
+
+
+        ColorButton.BackgroundColor3 =
+            ESP_COLOR
+
+
+        for _, data in pairs(
+            ESP
+        ) do
+
+            data.Highlight.FillColor =
+                ESP_COLORS.Highlight
+
+            data.Highlight.OutlineColor =
+                ESP_COLORS.Highlight
+
+            data.Info.TextColor3 =
+                ESP_COLOR
+
+        end
+
     end
-end)
+)
 
-createESPColorSelector("BOX COLOR", function()
-    return ESP_BOX_COLOR
-end, function(value)
-    ESP_BOX_COLOR = value
-end)
+
+
+--==============================================================
+-- SEPARATE ESP COLORS
+--==============================================================
+
+do
+    local palette = {
+        {"BLUE", Color3.fromRGB(80,145,255)},
+        {"RED", Color3.fromRGB(235,70,80)},
+        {"GREEN", Color3.fromRGB(60,210,115)},
+        {"PURPLE", Color3.fromRGB(155,90,255)},
+        {"PINK", Color3.fromRGB(255,90,180)},
+        {"CYAN", Color3.fromRGB(70,220,235)},
+        {"WHITE", Color3.fromRGB(245,245,245)}
+    }
+
+    local function addColorChoice(title, key)
+        local card = createCard(VisualPage, 58)
+        local label = makeText(card, title, 13, TEXT, Enum.Font.GothamMedium)
+        label.Size = UDim2.new(1, -190, 1, 0)
+        label.Position = UDim2.fromOffset(18, 0)
+
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.fromOffset(140, 34)
+        button.Position = UDim2.new(1, -158, 0.5, -17)
+        button.BackgroundColor3 = CARD2
+        button.BorderSizePixel = 0
+        button.TextColor3 = ESP_COLORS[key]
+        button.TextSize = 11
+        button.Font = Enum.Font.GothamBold
+        button.AutoButtonColor = false
+        button.Parent = card
+        corner(button, 7)
+        stroke(button)
+
+        local index = 1
+        button.Text = palette[index][1]
+
+        connect(button.MouseButton1Click, function()
+            index += 1
+            if index > #palette then index = 1 end
+
+            local picked = palette[index]
+            ESP_COLORS[key] = picked[2]
+            button.Text = picked[1]
+            button.TextColor3 = picked[2]
+
+            if key == "Highlight" then
+                for _, data in pairs(ESP) do
+                    if data.Highlight then
+                        data.Highlight.FillColor = picked[2]
+                        data.Highlight.OutlineColor = picked[2]
+                    end
+                end
+            end
+        end)
+    end
+
+    addColorChoice("NAME COLOR", "Name")
+    addColorChoice("DISTANCE COLOR", "Distance")
+    addColorChoice("SKELETON COLOR", "Skeleton")
+    addColorChoice("HIGHLIGHT COLOR", "Highlight")
+    addColorChoice("BOX COLOR", "Box")
+end
 
 
 --==============================================================
@@ -4413,6 +4547,116 @@ createToggle(
 
     end
 )
+
+
+
+--==============================================================
+-- LOOK TELEPORT
+--==============================================================
+
+do
+    local TELEPORT_BIND = {
+        InputType = Enum.UserInputType.Keyboard,
+        KeyCode = Enum.KeyCode.T
+    }
+
+    local function getLookedAtPlayer()
+        local viewport = Camera.ViewportSize
+        local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
+        local ray = Camera:ViewportPointToRay(center.X, center.Y)
+
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.IgnoreWater = true
+        params.FilterDescendantsInstances = LP.Character and {LP.Character} or {}
+
+        local result = workspace:Raycast(ray.Origin, ray.Direction * 5000, params)
+
+        if result and result.Instance then
+            local model = result.Instance:FindFirstAncestorOfClass("Model")
+            local player = model and Players:GetPlayerFromCharacter(model)
+            if player and player ~= LP then
+                return player
+            end
+        end
+
+        local bestPlayer = nil
+        local bestPixels = 70
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LP then
+                local character = player.Character
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+
+                if humanoid and humanoid.Health > 0 and root then
+                    local pos, visible = Camera:WorldToViewportPoint(root.Position)
+                    if visible and pos.Z > 0 then
+                        local pixels = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                        if pixels < bestPixels then
+                            bestPixels = pixels
+                            bestPlayer = player
+                        end
+                    end
+                end
+            end
+        end
+
+        return bestPlayer
+    end
+
+    local function teleportToLookedPlayer()
+        local target = getLookedAtPlayer()
+        if not target then
+            if notify then notify("Look at a player first") end
+            return
+        end
+
+        local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        local targetRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+
+        if not myRoot or not targetRoot then
+            if notify then notify("Teleport unavailable") end
+            return
+        end
+
+        myRoot.CFrame = targetRoot.CFrame * CFrame.new(3, 0, 0)
+        if notify then notify("Teleported to " .. target.Name) end
+    end
+
+    local card = createCard(PlayerPage, 64)
+    local label = makeText(card, "LOOK TELEPORT", 13, TEXT, Enum.Font.GothamMedium)
+    label.Size = UDim2.new(1, -190, 1, 0)
+    label.Position = UDim2.fromOffset(18, 0)
+
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.fromOffset(140, 34)
+    button.Position = UDim2.new(1, -158, 0.5, -17)
+    button.BackgroundColor3 = CARD2
+    button.BorderSizePixel = 0
+    button.Text = "TELEPORT"
+    button.TextColor3 = ACCENT
+    button.TextSize = 11
+    button.Font = Enum.Font.GothamBold
+    button.AutoButtonColor = false
+    button.Parent = card
+    corner(button, 7)
+    stroke(button)
+
+    connect(button.MouseButton1Click, teleportToLookedPlayer)
+
+    createKeybind(PlayerPage, "TELEPORT BIND", TELEPORT_BIND, function(newBind)
+        TELEPORT_BIND = newBind
+    end)
+
+    connect(UIS.InputBegan, function(input, gameProcessed)
+        if gameProcessed or UNLOADED then return end
+        if waitingBind then return end
+        if matchesBind(input, TELEPORT_BIND) then
+            teleportToLookedPlayer()
+        end
+    end)
+end
 
 
 --==============================================================
@@ -5580,10 +5824,10 @@ connect(
                 character
 
             data.Highlight.FillColor =
-                ESP_COLOR
+                ESP_COLORS.Highlight
 
             data.Highlight.OutlineColor =
-                ESP_COLOR
+                ESP_COLORS.Highlight
 
             data.Highlight.Enabled =
                 ESP_HIGHLIGHT
@@ -5595,31 +5839,28 @@ connect(
 
             local info = {}
 
-            local function rgbTag(color, text)
-                return string.format(
-                    '<font color="rgb(%d,%d,%d)">%s</font>',
-                    math.floor(color.R * 255 + 0.5),
-                    math.floor(color.G * 255 + 0.5),
-                    math.floor(color.B * 255 + 0.5),
-                    text
-                )
-            end
 
             if ESP_NAME then
+
                 table.insert(
                     info,
-                    rgbTag(ESP_NAME_COLOR, player.DisplayName)
+                    player.DisplayName
                 )
+
             end
 
+
             if ESP_DISTANCE then
+
                 table.insert(
                     info,
-                    rgbTag(
-                        ESP_DISTANCE_COLOR,
-                        "Távolság: " .. math.floor(distance)
+                    "Távolság: "
+                    ..
+                    math.floor(
+                        distance
                     )
                 )
+
             end
 
 
@@ -6546,407 +6787,8 @@ connect(RunService.Heartbeat, function(dt)
                 "Aim: " .. floatingBindName(AIM_BIND)
                 .. "\nSpeed: " .. floatingBindName(SPEED_BIND)
                 .. "\nFly: " .. floatingBindName(FLY_BIND)
-                .. "\nTeleport: " .. floatingBindName(TELEPORT_BIND)
                 .. "\nMenu: INSERT"
         end
     end
 end)
 
-
---==============================================================
--- V3 PERSISTENT CONFIG + PLAYER TELEPORT
--- Requires the matching ServerScript in ServerScriptService.
---==============================================================
-do
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local ConfigRemote = ReplicatedStorage:WaitForChild("ZalanPremiumConfig", 10)
-
-    local function makeActionCard(parent, titleText, buttonText, callback)
-        local card = createCard(parent, 64)
-
-        local label = makeText(
-            card,
-            titleText,
-            13,
-            TEXT,
-            Enum.Font.GothamMedium
-        )
-        label.Size = UDim2.new(1, -180, 1, 0)
-        label.Position = UDim2.fromOffset(18, 0)
-
-        local button = Instance.new("TextButton")
-        button.Size = UDim2.fromOffset(130, 34)
-        button.Position = UDim2.new(1, -148, 0.5, -17)
-        button.BackgroundColor3 = ACCENT
-        button.BorderSizePixel = 0
-        button.TextColor3 = TEXT
-        button.TextSize = 11
-        button.Font = Enum.Font.GothamBold
-        button.Text = buttonText
-        button.AutoButtonColor = false
-        button.Parent = card
-        corner(button, 8)
-
-        connect(button.MouseButton1Click, function()
-            if callback then
-                callback()
-            end
-        end)
-
-        return button
-    end
-
-    local function packBind(bind)
-        if not bind then
-            return nil
-        end
-
-        return {
-            InputType = bind.InputType and bind.InputType.Name or nil,
-            KeyCode = bind.KeyCode and bind.KeyCode.Name or nil
-        }
-    end
-
-    local function unpackBind(data, fallback)
-        if type(data) ~= "table" then
-            return fallback
-        end
-
-        local result = {
-            InputType = nil,
-            KeyCode = nil
-        }
-
-        if type(data.InputType) == "string" then
-            pcall(function()
-                result.InputType = Enum.UserInputType[data.InputType]
-            end)
-        end
-
-        if type(data.KeyCode) == "string" then
-            pcall(function()
-                result.KeyCode = Enum.KeyCode[data.KeyCode]
-            end)
-        end
-
-        if result.InputType == nil then
-            return fallback
-        end
-
-        return result
-    end
-
-    local function buildConfig()
-        return {
-            Version = 1,
-
-            ESP_ENABLED = ESP_ENABLED,
-            ESP_HIGHLIGHT = ESP_HIGHLIGHT,
-            ESP_BOX = ESP_BOX,
-            ESP_SKELETON = ESP_SKELETON,
-            ESP_NAME = ESP_NAME,
-            ESP_DISTANCE = ESP_DISTANCE,
-            ESP_HEALTH = ESP_HEALTH,
-            ESP_MAX_DISTANCE = ESP_MAX_DISTANCE,
-
-            AIM_STICKY = AIM_STICKY,
-            AIM_TARGET = AIM_TARGET,
-            AIM_STRENGTH = AIM_STRENGTH,
-            AIM_FOV = AIM_FOV,
-            AIM_DISTANCE = AIM_DISTANCE,
-            AIM_MODE = AIM_MODE,
-            AIM_BIND = packBind(AIM_BIND),
-
-            EXTRA_SPEED = EXTRA_SPEED,
-            SPEED_BIND = packBind(SPEED_BIND),
-
-            FLY_SPEED = FLY_SPEED,
-            FLY_BIND = packBind(FLY_BIND),
-
-            HITBOX_SCALE = HITBOX_SCALE,
-            HITBOX_TARGET = HITBOX_TARGET,
-            HITBOX_VISIBLE = HITBOX_VISIBLE,
-
-            TeamCheck = GUI:GetAttribute("TeamCheck") == true,
-            WallCheck = GUI:GetAttribute("WallCheck") == true,
-
-            GUI_SCALE_VALUE = GUI_SCALE_VALUE
-        }
-    end
-
-    local function applyConfig(data)
-        if type(data) ~= "table" then
-            return false
-        end
-
-        local function bool(name, current)
-            if type(data[name]) == "boolean" then
-                return data[name]
-            end
-            return current
-        end
-
-        local function number(name, current, minValue, maxValue)
-            local value = tonumber(data[name])
-            if value == nil then
-                return current
-            end
-            return math.clamp(value, minValue, maxValue)
-        end
-
-        ESP_ENABLED = bool("ESP_ENABLED", ESP_ENABLED)
-        ESP_HIGHLIGHT = bool("ESP_HIGHLIGHT", ESP_HIGHLIGHT)
-        ESP_BOX = bool("ESP_BOX", ESP_BOX)
-        ESP_SKELETON = bool("ESP_SKELETON", ESP_SKELETON)
-        ESP_NAME = bool("ESP_NAME", ESP_NAME)
-        ESP_DISTANCE = bool("ESP_DISTANCE", ESP_DISTANCE)
-        ESP_HEALTH = bool("ESP_HEALTH", ESP_HEALTH)
-        ESP_MAX_DISTANCE = number("ESP_MAX_DISTANCE", ESP_MAX_DISTANCE, 50, 5000)
-
-        AIM_STICKY = bool("AIM_STICKY", AIM_STICKY)
-        if data.AIM_TARGET == "HEAD" or data.AIM_TARGET == "BODY" then
-            AIM_TARGET = data.AIM_TARGET
-        end
-        AIM_STRENGTH = number("AIM_STRENGTH", AIM_STRENGTH, 1, 100)
-        AIM_FOV = number("AIM_FOV", AIM_FOV, 50, 800)
-        AIM_DISTANCE = number("AIM_DISTANCE", AIM_DISTANCE, 50, 2000)
-        if data.AIM_MODE == "HOLD" or data.AIM_MODE == "TOGGLE" then
-            AIM_MODE = data.AIM_MODE
-        end
-        AIM_BIND = unpackBind(data.AIM_BIND, AIM_BIND)
-
-        EXTRA_SPEED = number("EXTRA_SPEED", EXTRA_SPEED, 0, 100)
-        SPEED_BIND = unpackBind(data.SPEED_BIND, SPEED_BIND)
-
-        FLY_SPEED = number("FLY_SPEED", FLY_SPEED, 10, 250)
-        FLY_BIND = unpackBind(data.FLY_BIND, FLY_BIND)
-
-        HITBOX_SCALE = number("HITBOX_SCALE", HITBOX_SCALE, 1, 10)
-        if data.HITBOX_TARGET == "HEAD" or data.HITBOX_TARGET == "BODY" then
-            HITBOX_TARGET = data.HITBOX_TARGET
-        end
-        HITBOX_VISIBLE = bool("HITBOX_VISIBLE", HITBOX_VISIBLE)
-
-        if type(data.TeamCheck) == "boolean" then
-            GUI:SetAttribute("TeamCheck", data.TeamCheck)
-        end
-        if type(data.WallCheck) == "boolean" then
-            GUI:SetAttribute("WallCheck", data.WallCheck)
-        end
-
-        GUI_SCALE_VALUE = number("GUI_SCALE_VALUE", GUI_SCALE_VALUE, 70, 130)
-        if MainScale then
-            MainScale.Scale = GUI_SCALE_VALUE / 100
-        end
-
-        currentTarget = nil
-        return true
-    end
-
-    -- CONFIG UI
-    makeActionCard(
-        SettingsPage,
-        "PERSISTENT CONFIG",
-        "SAVE CONFIG",
-        function()
-            if not ConfigRemote then
-                notify("Config server missing")
-                return
-            end
-
-            local ok, result = pcall(function()
-                return ConfigRemote:InvokeServer("Save", buildConfig())
-            end)
-
-            if ok and result == true then
-                notify("Config saved")
-            else
-                notify("Config save failed")
-            end
-        end
-    )
-
-    makeActionCard(
-        SettingsPage,
-        "LOAD SAVED CONFIG",
-        "LOAD CONFIG",
-        function()
-            if not ConfigRemote then
-                notify("Config server missing")
-                return
-            end
-
-            local ok, data = pcall(function()
-                return ConfigRemote:InvokeServer("Load")
-            end)
-
-            if ok and type(data) == "table" and applyConfig(data) then
-                notify("Config loaded")
-            else
-                notify("No saved config")
-            end
-        end
-    )
-
-    -- PLAYER TELEPORT UI
-    local TELEPORT_BIND = {
-        InputType = Enum.UserInputType.Keyboard,
-        KeyCode = Enum.KeyCode.T
-    }
-
-    -- Teleports to the player currently under the center of your screen/crosshair.
-    local tpCard = createCard(PlayerPage, 88)
-
-    local tpTitle = makeText(
-        tpCard,
-        "LOOK TELEPORT",
-        13,
-        TEXT,
-        Enum.Font.GothamMedium
-    )
-    tpTitle.Size = UDim2.new(1, -180, 1, 0)
-    tpTitle.Position = UDim2.fromOffset(18, 0)
-
-    local tpButton = Instance.new("TextButton")
-    tpButton.Size = UDim2.fromOffset(130, 38)
-    tpButton.Position = UDim2.new(1, -148, 0.5, -19)
-    tpButton.BackgroundColor3 = ACCENT
-    tpButton.BorderSizePixel = 0
-    tpButton.Text = "TELEPORT"
-    tpButton.TextColor3 = TEXT
-    tpButton.TextSize = 11
-    tpButton.Font = Enum.Font.GothamBold
-    tpButton.Parent = tpCard
-    corner(tpButton, 8)
-
-    local function getLookedAtPlayer()
-        local viewport = Camera.ViewportSize
-        local centerX = viewport.X / 2
-        local centerY = viewport.Y / 2
-
-        -- First use a real ray through the center of the screen.
-        local ray = Camera:ViewportPointToRay(centerX, centerY)
-
-        local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Exclude
-        params.IgnoreWater = true
-
-        if LP.Character then
-            params.FilterDescendantsInstances = {LP.Character}
-        else
-            params.FilterDescendantsInstances = {}
-        end
-
-        local hit = workspace:Raycast(
-            ray.Origin,
-            ray.Direction * 5000,
-            params
-        )
-
-        if hit and hit.Instance then
-            local model = hit.Instance:FindFirstAncestorOfClass("Model")
-            if model then
-                local player = Players:GetPlayerFromCharacter(model)
-                if player and player ~= LP then
-                    return player
-                end
-            end
-        end
-
-        -- Small crosshair tolerance so you do not need pixel-perfect aim.
-        local closest = nil
-        local closestPixels = 70
-
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LP and player.Character then
-                local root = player.Character:FindFirstChild("HumanoidRootPart")
-                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-
-                if root and humanoid and humanoid.Health > 0 then
-                    local screen, visible = Camera:WorldToViewportPoint(root.Position)
-
-                    if visible and screen.Z > 0 then
-                        local dx = screen.X - centerX
-                        local dy = screen.Y - centerY
-                        local pixels = math.sqrt(dx * dx + dy * dy)
-
-                        if pixels < closestPixels then
-                            closestPixels = pixels
-                            closest = player
-                        end
-                    end
-                end
-            end
-        end
-
-        return closest
-    end
-
-    local function teleportToLookedAtPlayer()
-        local target = getLookedAtPlayer()
-
-        if not target then
-            notify("Look at a player first")
-            return
-        end
-
-        local myCharacter = LP.Character
-        local theirCharacter = target.Character
-        local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
-        local theirRoot = theirCharacter and theirCharacter:FindFirstChild("HumanoidRootPart")
-
-        if not myRoot or not theirRoot then
-            notify("Player unavailable")
-            return
-        end
-
-        myRoot.CFrame = theirRoot.CFrame * CFrame.new(3, 0, 0)
-        notify("Teleported to " .. target.Name)
-    end
-
-    connect(tpButton.MouseButton1Click, teleportToLookedAtPlayer)
-
-    createKeybind(
-        PlayerPage,
-        "TELEPORT BIND",
-        TELEPORT_BIND,
-        function(newBind)
-            TELEPORT_BIND = newBind
-        end
-    )
-
-    connect(UIS.InputBegan, function(input, gameProcessed)
-        if UNLOADED or gameProcessed then
-            return
-        end
-
-        if matchesBind(input, TELEPORT_BIND) then
-            teleportToLookedAtPlayer()
-        end
-    end)
-
-    -- AUTO LOAD once after the UI is ready.
-    if ConfigRemote then
-        task.spawn(function()
-            local ok, data = pcall(function()
-                return ConfigRemote:InvokeServer("Load")
-            end)
-
-            if ok and type(data) == "table" then
-                if applyConfig(data) then
-                    notify("Saved config auto-loaded")
-                end
-            end
-        end)
-    else
-        notify("Config ServerScript not found")
-    end
-end
-
---==============================================================
--- MODULE EXPORT
---==============================================================
-return {
-    Loaded = true,
-    Gui = GUI
-}
